@@ -73,7 +73,7 @@ function u = evaluate(leaf,root,ud)
   prune=@(node,dummy) well_separated(node,leaf); 
 
 % evaluation function, again to be used in the traversals
-  function visit(node,ud)                           
+  function visit(node, ud)                           
     if ud.plottree, node.plotnode(); pause(0.01); end  % optional plot
     if node.isleaf & ~isempty(node.globalIds)  % if source box has not sources, nothing to do
       src = ud.points(:,node.globalIds);       % get source positions

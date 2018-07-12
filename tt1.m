@@ -17,21 +17,24 @@ particleCoordinates     = rand(2, N);
 % --- Running the algorithm
 globalIds               = 1 : N;  % --- Global particle IDs
 quadTreeObject          = qtree;  % --- Initializing the quad tree object  
+% --- Inserting the particles
 quadTreeObject.insertPoints(globalIds, particleCoordinates, maxNumPointsPerNode, maxNumLevels);
-quadTreeObject.plottree;
+% --- Plotting the tree
+quadTreeObject.plotTree;
 axis off; hold on;
-plot(particleCoordinates(1,:),particleCoordinates(2,:),'or','MarkerSize',5);
+plot(particleCoordinates(1, :),particleCoordinates(2, :), 'or', 'MarkerSize', 5);
 axis off;
 
 if verbose
-   % print morton ids, all nodes
-   disp(' all nodes');
-   quadTreeObject.print_mids;
-   % print morton ids, leaves only
-   disp('  leaves only');
-   quadTreeObject.print_mids(true);
+   % --- Prints Morton IDs for all nodes
+   disp('All nodes');
+   quadTreeObject.printMortonIDs;
+   % --- Prints Morton IDs for leaves only
+   disp('Leaves only');
+   quadTreeObject.printMortonIDs(true);
 end
-depth=find_depth(quadTreeObject);
-fprintf('tree depth is %d\n', depth);
+
+depth = findDepth(quadTreeObject);
+fprintf('Tree depth is %d\n', depth);
 
 

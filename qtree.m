@@ -1,7 +1,7 @@
 classdef qtree < handle
 % implements a quatree data structure
 %    point based construction in 2D.
-%    preorder and postorder traversals
+%    preorderTraversal and postorder traversals
 %      
 % see "doc qtree" for documentation on methods and classes
 % see "nbody.m" for the 
@@ -176,119 +176,147 @@ idx_y =  find(ymin <= particleCoordinates(2, :) & particleCoordinates(2,:) < yma
 idx = intersect(idx_x, idx_y);
 end
 
-%/* ************************************************** */
-function  preorder(this, visit, prune, user_data)
-% function  preorder(this, visit, prune, user_data)  
-% preorder traversal with prunning  
-% visit(node,data)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PREORDER TRAVERSAL METHOD %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function preorderTraversal(this, visitFunction, prune, userData)
+% function preorderTraversal(this, visitFunction, prune, userData)  
+%
+% --- Performs preorder traversal with prunning  
+%     visitFunction represents the operations that must be performed on each not upon traversal
 % prune(node,data) can be empty
-% user_data: user data structure for calculations
+% userData: user data structure for calculations
 
 doPrune = false;
-if ~isempty(prune),   doPrune= prune(this, user_data);  end
-visit(this,user_data);
-if ~this.isleaf & ~doPrune
-   for k=1:4
-     this.children{k}.preorder( visit, prune, user_data);
+if ~isempty(prune)
+    doPrune = prune(this, userData);  
+end
+visitFunction(this, userData);
+% --- If the node is not a leaf and pruning must not be performed, then
+% visit the four children
+if ~this.isleaf && ~doPrune
+   for k = 1 : 4
+     this.children{k}.preorderTraversal(visitFunction, prune, userData);
    end
 end
 end
 
 
 %/* ************************************************** */
-function  postorder(this, visit, prune, user_data)
-% function  postorder(this, visit, prune, user_data)  
-% preorder traversal with prunning  
+function  postorder(this, visit, prune, userData)
+% function  postorder(this, visit, prune, userData)  
+% preorderTraversal traversal with prunning  
 % visit(node,data)
 % prune(node,data) can be empty
-% user_data: user data structure for calculations
+% userData: user data structure for calculations
 
 doPrune = false;
-if ~isempty(prune),   doPrune= prune(this, user_data);  end
+if ~isempty(prune),   doPrune= prune(this, userData);  end
 if ~this.isleaf & ~doPrune
    for k=1:4
-     this.children{k}.postorder( visit, prune, user_data);
+     this.children{k}.postorder( visit, prune, userData);
    end
 end
-visit(this,user_data);
+visit(this,userData);
 end
 
 %/* ************************************************** */
-function list=leaves(this)
-% function list=leaves(this)  
-% collects all the leaves in a single array  
-  list={};
-  cnt=0;
-  function visit(this,dummy)
-    if this.isleaf
-      cnt=cnt+1;
-      list{cnt}=this;
-    end
-  end
-  this.preorder(@visit,[],[]);
-end
+% function list=leaves(this)
+% % function list=leaves(this)  
+% % collects all the leaves in a single array  
+%   list={};
+%   cnt=0;
+% function visit(this, dummyParameter)
+%     if this.isleaf
+%         cnt = cnt + 1;
+%         list{cnt} = this;
+%     end
+% end
+% this.preorderTraversal(@visit, [], []);
+% end
   
 
 %/* ************************************************** */
 function print(this)
 % function print(this)  
 % print information about a node  
-  print_node = @(this,dummy)...
+  printNode = @(this,dummyParameter)...
       fprintf('node  at level %d: lowerLeftCorner:[%1.4f %1.4f]\N',...
               this.level,this.lowerLeftCorner(1),this.lowerLeftCorner(2));
-  this.preorder(print_node,[],[]);
+  this.preorderTraversal(printNode,[],[]);
 end
 
-%/* ************************************************** */
-function print_mids(this,leaves_only)
-% function print_mids(this,leaves_only)  
-% print the Morton IDs of nodes (using the class morton_id)
-% leaves_only : if true, it only prints the leaves.
-  mid = morton_id;
-  if nargin<2, leaves_only=false; end;
-  function print_node(this,dummy)
-    if leaves_only & ~this.isleaf, return; end;
-    fprintf('mid:');
-    id = mid.id(this.level,this.lowerLeftCorner);
-    mid.print(id);
-    fprintf(': %20u at level %2d: lowerLeftCorner:[%1.4f %1.4f]\N',...
-            id, this.level,this.lowerLeftCorner(1),this.lowerLeftCorner(2));
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PRINT NODE MORTON IDs METHOD %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function printMortonIDs(this, leavesOnly)
+% function printMortonIDs(this, leavesOnly)  
+%
+% --- Prints the Morton IDs of the nodes (using the class mortonID)
+%     If leavesOnly is true, it only prints the leaves.
 
-  end
-  this.preorder(@print_node,[],[]);    
+mID = mortonID;
+if nargin < 2
+    leavesOnly = false; 
+end
+function printNode(this, dummyParameter)
+    if leavesOnly && ~this.isleaf
+        return; 
+    end
+    fprintf('Morton ID:');
+    ID = mID.id(this.level, this.lowerLeftCorner);
+    mID.print(ID);
+    fprintf(': %20u at level %2d: lowerLeftCorner: [%1.4f %1.4f]\n', ID, this.level, this.lowerLeftCorner(1), this.lowerLeftCorner(2));
+end
+this.preorderTraversal(@printNode, [], []);
 end
 
-%/* ************************************************** */
-function depth=find_depth(this)
-% function depth=find_depth(this)  
-% function depth=find_depth(this)  
-% depth : depth of the tree.  
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIND TREE DEPTH METHOD %
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+function depth = findDepth(this)
+% function depth = findDepth(this)  
+%
+% --- Returns the tree depth
    depth = 0;
-   function v=fdt(this,dummy)
-      depth=max(this.level,depth);
+   function v = fdt(this, dummyParameter)
+      depth = max(this.level, depth);
    end
-   this.preorder(@fdt,[],[]);
+   this.preorderTraversal(@fdt, [], []);
 end
 
-%/* ************************************************** */
-function  plotnode(this,width) 
-% function  plotnode(this,width)   
-% plot the rectangul corresponding to the node  
-  if nargin<2,width=1;end;
-  rectangle('Curvature',[0.00,0.00],...
-     'Position', [this.lowerLeftCorner(1),this.lowerLeftCorner(2),1/2^this.level,1/2^this.level], 'LineWidth',width);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PLOTTING A SINGLE NODE FUNCTION %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function plotNode(this, linewidth) 
+% function plotNode(this, width)   
+%
+% --- Plots the rectangle corresponding to the node  
+% --- Sets the linewidth to 2 by default
+if nargin < 2
+    linewidth = 2;
+end
+rectangle('Curvature', [0.00, 0.00], ...
+          'Position', [this.lowerLeftCorner(1), this.lowerLeftCorner(2), 1/2^this.level, 1/2^this.level], ...
+          'LineWidth', linewidth);
 end
 
-%/* ************************************************** */
-function plottree(this,markersize)
-% function plottree(this,markersize)  
-%  function plottree(this,markersize)
-%  plots the whole tree.  
-  hold on;
-  if nargin<2,markersize=2;end;
-  plotnode=@(node,dummy)node.plotnode(markersize);
-  this.preorder(plotnode,[],[]);
-  hold off;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PLOTTING THE ENTIRE TREE METHOD %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function plotTree(this, linewidth)
+% function plotTree(this, linewidth)  
+%
+% --- Plots the entire tree.  
+hold on;
+% --- Sets the linewidth to 2 by default
+if nargin < 2
+    linewidth = 2;
+end
+% --- Defines an inline function plotting a node
+plotNode = @(node, dummyParameter)node.plotNode(linewidth);
+this.preorderTraversal(plotNode, [], []);
+hold off;
 end
 
 end % methods
