@@ -1,30 +1,24 @@
+clear all
+clear globals
+close all
+clc
+
+% --- Algorithm parameters
+N                       = 2^6;    % --- Number of particles
+maxNumPointsPerNode     = 1;      % --- Maximum number of particleCoordinates per node
+maxNumLevels            = 20;     % --- Maximum tree depth
+
+% --- Particle coordinates
+particleCoordinates     = rand(2, N); 
+
+% --- Particle charges
+particleMasses = rand(1, N) / N;
+
+[potential, tree] = nbody(particleCoordinates, particleMasses, maxNumPointsPerNode, maxNumLevels, false);
 
 
-n              = 2^6;    % number of particles
-maxPntsPerNode = 1;      % points per box
-maxLevel       = 20;     % maximum tree depth
-
-point_type     = 'random' ;
-%point_type     = 'regular';
-
-dim = 2;
-switch point_type
-  case 'regular'
-    l=log2(n)/2; %log4 logarithm
-    h=2^-l;
-    [x,y]=meshgrid(0:h:1-h,0:h:1-h);
-    points = [x(:)'+h/2;y(:)'+h/2]; 
-    n=size(points,2);
-  otherwise % 'random' 
-    points = rand(dim,n);   %using uniform distribution
-end
-densities = rand(1,n)/n;
-
-[u,tree] = nbody(points,densities,maxPntsPerNode,maxLevel,false);
-
-
-figure(2),tree.plottree(4); axis off; hold on;
-plot(points(1,:),points(2,:),'or','MarkerSize',4);
+figure(2),tree.plotTree(4); axis off; hold on;
+plot(particleCoordinates(1,:),particleCoordinates(2,:),'or','MarkerSize',4);
 
 
 

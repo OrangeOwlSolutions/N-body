@@ -1,10 +1,8 @@
 classdef qtree < handle
-% implements a quatree data structure
-%    point based construction in 2D.
-%    preorderTraversal and postorder traversals
+% --- Implements a quatree data structure for point-like particles
+% --- Preorder traversal and postorder traversal implemented.
 %      
-% see "doc qtree" for documentation on methods and classes
-% see "nbody.m" for the 
+% --- See "doc qtree" for documentation on methods and classes
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % QUAD-TREE CLASS PROPERTIES %
@@ -221,19 +219,19 @@ visit(this,userData);
 end
 
 %/* ************************************************** */
-% function list=leaves(this)
-% % function list=leaves(this)  
-% % collects all the leaves in a single array  
-%   list={};
-%   cnt=0;
-% function visit(this, dummyParameter)
-%     if this.isleaf
-%         cnt = cnt + 1;
-%         list{cnt} = this;
-%     end
-% end
-% this.preorderTraversal(@visit, [], []);
-% end
+function list=leaves(this)
+% function list=leaves(this)  
+% collects all the leaves in a single array  
+  list={};
+  cnt=0;
+function visit(this, dummyParameter)
+    if this.isleaf
+        cnt = cnt + 1;
+        list{cnt} = this;
+    end
+end
+this.preorderTraversal(@visit, [], []);
+end
   
 
 %/* ************************************************** */
