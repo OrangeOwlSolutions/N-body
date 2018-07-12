@@ -12,9 +12,9 @@ maxNumLevels            = 20;     % --- Maximum tree depth
 particleCoordinates     = rand(2, N); 
 
 % --- Particle charges
-particleMasses = rand(1, N) / N;
+particleCharges = rand(1, N) / N;
 
-[potential, tree] = nbody(particleCoordinates, particleMasses, maxNumPointsPerNode, maxNumLevels, false);
+[potential, tree] = nbody(particleCoordinates, particleCharges, maxNumPointsPerNode, maxNumLevels, false);
 
 
 figure(2),tree.plotTree(4); axis off; hold on;

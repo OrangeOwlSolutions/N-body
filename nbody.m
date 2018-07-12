@@ -1,16 +1,16 @@
-function [potential, tree] = nbody(particleCoordinates, particleMasses, maxNumPointsPerNode, maxNumLevels)
-% function [potential, tree] = nbody(particleCoordinates, particleMasses, maxNumPointsPerNode, maxNumLevels, plotTree)
+function [potential, tree] = nbody(particleCoordinates, particleCharges, maxNumPointsPerNode, maxNumLevels)
+% function [potential, tree] = nbody(particleCoordinates, particleCharges, maxNumPointsPerNode, maxNumLevels, plotTree)
 %
 % --- particleCoordinates           : 2 x N array of the point coordinates (N is the number of particles)
-% --- particleMasses                : particle masses - all particle masses must be positive
+% --- particleCharges                : particle masses - all particle masses must be positive
 % --- maxNumPointsPerNode           : used to decide wether to split the node or not  
 %
 % --- potential                     : computed potential at each point
 % --- tree                          : pointer to the root of the tree  
 %  
 % --- Assumptions:
-%     the algorithm applies to arbitrary particleMasses, but the simple
-%         averaging implemented here works only for positive particleMasses.
+%     the algorithm applies to arbitrary particleCharges, but the simple
+%         averaging implemented here works only for positive particleCharges.
 % here we assume that we only compute self interactions, that is the source and target 
 %  particleCoordinates coincide.
 
@@ -21,7 +21,7 @@ end
 if nargin < 4 
     maxNumLevels = 20;      
 end
-assert(all(particleMasses >= 0), 'All particle masses must be positive');
+assert(all(particleCharges >= 0), 'All particle masses must be positive');
 
 % BUILD TREE ---------------------------------------
 globalIds = 1:size(particleCoordinates,2);
@@ -29,7 +29,7 @@ root = qtree;
 root.insertPoints(globalIds,particleCoordinates,maxNumPointsPerNode,maxNumLevels);
 
 user_data.particleCoordinates    = particleCoordinates;
-user_data.particleMasses = particleMasses;
+user_data.particleCharges = particleCharges;
 % user_data.plotTree  = plotTree; % to plot tree as you evaluate()
 
 % collect all the leaves on a single lits
@@ -79,7 +79,7 @@ function u = evaluate(leaf,root,ud)
     if ud.plotTree, node.plotnode(); pause(0.01); end  % optional plot
     if node.isleaf & ~isempty(node.globalIds)  % if source box has not sources, nothing to do
       src = ud.particleCoordinates(:,node.globalIds);       % get source positions
-      den = ud.particleMasses(:,node.globalIds);    % get source particleMasses values
+      den = ud.particleCharges(:,node.globalIds);    % get source particleCharges values
       u = u + direct(trg,src,den);        % direct evaluation between boxes
       return;
     end
@@ -98,16 +98,16 @@ end
 function average_leaves(node,user_data)
   if ~node.isleaf, return; end;
   particleCoordinates    = user_data.particleCoordinates;
-  particleMasses = user_data.particleMasses;
+  particleCharges = user_data.particleCharges;
   globalIds = node.globalIds;
 
   if isempty(globalIds) % empty leaf
     x_a=zeros(2,1); d_a=0; 
   else
-    d_a = sum( particleMasses(globalIds) );  % average 
-    assert(d_a>0,'Only positive particleMasses allowed');
-    x_a(1) = sum( particleCoordinates   (1,globalIds).*particleMasses(globalIds) )/d_a;  % average position
-    x_a(2) = sum( particleCoordinates   (2,globalIds).*particleMasses(globalIds) )/d_a;  % average position
+    d_a = sum( particleCharges(globalIds) );  % average 
+    assert(d_a>0,'Only positive particleCharges allowed');
+    x_a(1) = sum( particleCoordinates   (1,globalIds).*particleCharges(globalIds) )/d_a;  % average position
+    x_a(2) = sum( particleCoordinates   (2,globalIds).*particleCharges(globalIds) )/d_a;  % average position
   end
   node.data.x_a = x_a(:);
   node.data.d_a = d_a;
@@ -149,7 +149,7 @@ end
 
 
 %/* ************************************************** */
-function u = direct(trg,src,particleMasses)
+function u = direct(trg,src,particleCharges)
 % this is a direct N^2 evaluation between particles  
   N = size(trg,2);
   u = zeros(N,1);
@@ -168,7 +168,7 @@ function u = direct(trg,src,particleMasses)
     idx = find (g==inf | g==-inf);
     g(idx)=0;
 
-    u(k) = sum ( g.*particleMasses );
+    u(k) = sum ( g.*particleCharges );
   end
   
 end
@@ -182,10 +182,10 @@ end
 % maxNumLevels       = 20;     % maximum tree depth
 % verbose        = false;  % debugging
 % particleCoordinates = rand(2,N);  
-% particleMasses = rand(1,N)/N;
+% particleCharges = rand(1,N)/N;
 % 
-% [u,tree] = nbody(particleCoordinates,particleMasses,maxNumPointsPerNode,maxNumLevels,false);
-% uex=direct(particleCoordinates(:,1:10), particleCoordinates, particleMasses);
+% [u,tree] = nbody(particleCoordinates,particleCharges,maxNumPointsPerNode,maxNumLevels,false);
+% uex=direct(particleCoordinates(:,1:10), particleCoordinates, particleCharges);
 % error = norm(u(1:10)-uex)/norm(uex)
 % tree.plotTree();
 % 
