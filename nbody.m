@@ -67,7 +67,9 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function potential = evaluate(leaf, tree, userData)
 
-%   if userData.plotTree, leaf.plotnode(4); end  % optional plot
+% --- leaf is the target node, namely, the node where we want to compute the potential
+% --- node is the source node
+
 % --- If leaf has no particle, then exit
 if isempty(leaf.globalIDs) 
     return; 
@@ -76,26 +78,26 @@ end
 targetCoordinates   = userData.particleCoordinates(:, leaf.globalIDs);          % --- Get targetNode point coordinates
 potential           = zeros(length(leaf.globalIDs), 1);                         % --- Initialize potential to zero
   
-% prunning function,  a handle function to use for traversals
-prune = @(node,dummy) checkIfWellSeparated(node, leaf); 
+% --- Inline pruning function. The pruning occurs if source and target nodes are not well separated
+prune = @(node, dummyParameter) checkIfWellSeparated(node, leaf); 
 
-% evaluation function, again to be used in the traversals
-  function visit(node, userData)                           
-%     if userData.plotTree, node.plotnode(); pause(0.01); end  % optional plot
-    if node.isleaf & ~isempty(node.globalIDs)  % if sourceNode box has not sources, nothing to do
-      src = userData.particleCoordinates(:,node.globalIDs);       % get sourceNode positions
-      den = userData.particleMasses(:,node.globalIDs);    % get sourceNode particleMasses values
-      potential = potential + direct(targetCoordinates,src,den);        % direct evaluation between boxes
-      return;
+% --- Inline function to be used in the traversal
+function visit(node, userData)                   
+    % --- If the source node is a leaf and has at least one particle, perform brute-force summation
+    if node.isleaf && ~isempty(node.globalIDs)  
+        src = userData.particleCoordinates(:, node.globalIDs);          % --- Get source particle positions
+        den = userData.particleMasses(:, node.globalIDs);               % --- Get source particle masses
+        potential = potential + direct(targetCoordinates, src, den);    % --- Brute force summation on individual particles
+        return;
     end
-  % if we prune, we have to add the nodes contribution to the leaf
+    % --- Pruning occurs if the source and target nodes are not well separated. In this case, use brute-force summation
     if prune(node, []) 
-      potential = potential + direct(targetCoordinates, node.data.centerOfMass, node.data.totalMass);  % direct evaluat
+        potential = potential + direct(targetCoordinates, node.data.centerOfMass, node.data.totalMass);  % --- Brute force summation on center of masses
     end
-  end
+end
 
-% preorderTraversal traversal for evaluation
-  tree.preorderTraversal(@visit,prune,userData);   % if couldn't prune, continue with traversal
+% --- Perorder tree traversal
+tree.preorderTraversal(@visit, prune, userData);   
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -152,7 +154,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % FUNCTION TO CHECK IF TWO NODES ARE WELL SEPARATED %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function itis = checkIfWellSeparated(sourceNode, targetNode)
+function wellSeparated = checkIfWellSeparated(sourceNode, targetNode)
 
 % --- Checks whether two boxes are well separated  
   
@@ -167,12 +169,12 @@ s_ymin = s_ymin - sourceWidth;
 s_xmax = s_xmax + sourceWidth;   
 s_ymax = s_ymax + sourceWidth;
 
-% check overlap of sourceNode box neigbhorhood region with targetNode
-  flagx = t_xmax > s_xmin & t_xmin < s_xmax;
-  flagy = t_ymax > s_ymin & t_ymin < s_ymax;
+% --- Check overlap of the source and target nodes
+flagx = t_xmax > s_xmin & t_xmin < s_xmax;
+flagy = t_ymax > s_ymin & t_ymin < s_ymax;
 
-% if both flags  are true the boxes are not well separated
-  itis = ~ (flagx & flagy);
+% --- If both flags are true, source and target nodes overlap
+wellSeparated = ~(flagx & flagy);
 end
 
 
