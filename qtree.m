@@ -8,7 +8,7 @@ classdef qtree < handle
 % QUAD-TREE CLASS PROPERTIES %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 properties
-    globalIds           % --- Global particle IDs 
+    globalIDs           % --- Global particle IDs 
     children            % --- children{i}, i = 1 : 4, are the children of the current node
     parent              % --- Node parent
     level               % --- Node level
@@ -41,7 +41,7 @@ if nargin < 3
     lowerLeftCorner = [0, 0];        
 end
 
-this.globalIds          = [];
+this.globalIDs          = [];
 this.children           = [];
 this.parent             = parent;
 this.level              = level;
@@ -115,24 +115,24 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%
 % INSERT POINTS METHOD %
 %%%%%%%%%%%%%%%%%%%%%%%%
-function insertPoints(this, globalIds, particleCoordinates, maxNumPointsPerNode, maxNumLevels)
-% function insertPoints(this, globalIds, particleCoordinates, maxNumPointsPerNode, maxNumLevels)
+function insertPoints(this, globalIDs, particleCoordinates, maxNumPointsPerNode, maxNumLevels)
+% function insertPoints(this, globalIDs, particleCoordinates, maxNumPointsPerNode, maxNumLevels)
 %
 % --- Function adding points to the quad tree.
 % --- particleCoordinates           : 2 x N array of the point coordinates (N is the number of particles)
-% --- globalIds                     : ids of particleCoordinates (unsigned int)
+% --- globalIDs                     : ids of particleCoordinates (unsigned int)
 % --- maxNumPointsPerNode           : used to decide wether to split the node or not  
 %
-%     Note that this function will break if globalIds is not a permuation of 1 : N
+%     Note that this function will break if globalIDs is not a permuation of 1 : N
   
-if isempty(globalIds), return; end;
+if isempty(globalIDs), return; end;
 
 % --- In the node is a leaf...
 if this.isleaf
-    numParticlesToBeInserted      = length(globalIds);
-    numAlreadyPresentParticles    = length(this.globalIds);
+    numParticlesToBeInserted      = length(globalIDs);
+    numAlreadyPresentParticles    = length(this.globalIDs);
     % ...the particle IDs are merged...
-    this.globalIds                = unique([this.globalIds(:); globalIds(:)]);
+    this.globalIDs                = unique([this.globalIDs(:); globalIDs(:)]);
 
     % ...if the node can host the already contained particles plus the new particles, or if the node level is the maximum possible, 
     %    then there is nothing to do and the routine returns...
@@ -145,16 +145,16 @@ if this.isleaf
     splitNode(this);
         
     % --- The particle IDs are temporary saved and canceled from the current node that has become a parent.
-    globalIds       = this.globalIds;
-    this.globalIds  = [];
+    globalIDs       = this.globalIDs;
+    this.globalIDs  = [];
 end
 
 % --- Now we have to insert the particle coordinates to the children.
 for k = 1 : 4
     % --- First, we have to check which points belong to which child...
-    idx = this.children{k}.getPointIndicesInNode(particleCoordinates(:, globalIds));
+    idx = this.children{k}.getPointIndicesInNode(particleCoordinates(:, globalIDs));
     % ... and then the function recursively calls itself.
-    this.children{k}.insertPoints(globalIds(idx), particleCoordinates, maxNumPointsPerNode,maxNumLevels  );
+    this.children{k}.insertPoints(globalIDs(idx), particleCoordinates, maxNumPointsPerNode,maxNumLevels  );
 end
 end
 
@@ -199,9 +199,10 @@ if ~this.isleaf && ~doPrune
 end
 end
 
-
-%/* ************************************************** */
-function  postorder(this, visit, prune, userData)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% POSTORDER TRAVERSAL METHOD %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function postorderTraversal(this, visit, prune, userData)
 % function  postorder(this, visit, prune, userData)  
 % preorderTraversal traversal with prunning  
 % visit(node,data)
@@ -212,22 +213,26 @@ doPrune = false;
 if ~isempty(prune),   doPrune= prune(this, userData);  end
 if ~this.isleaf & ~doPrune
    for k=1:4
-     this.children{k}.postorder( visit, prune, userData);
+     this.children{k}.postorderTraversal( visit, prune, userData);
    end
 end
 visit(this,userData);
 end
 
-%/* ************************************************** */
-function list=leaves(this)
-% function list=leaves(this)  
-% collects all the leaves in a single array  
-  list={};
-  cnt=0;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% LEAVES COLLECTION METHOD %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function leavesArray = leaves(this)
+% function leavesArray = leaves(this)  
+%
+% --- Collects all the leaves in a single array  
+
+leavesArray     = {};
+counter         = 0;
 function visit(this, dummyParameter)
     if this.isleaf
-        cnt = cnt + 1;
-        list{cnt} = this;
+        counter = counter + 1;
+        leavesArray{counter} = this;
     end
 end
 this.preorderTraversal(@visit, [], []);

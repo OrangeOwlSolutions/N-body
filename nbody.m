@@ -1,17 +1,17 @@
-function [potential, tree] = nbody(particleCoordinates, particleCharges, maxNumPointsPerNode, maxNumLevels)
-% function [potential, tree] = nbody(particleCoordinates, particleCharges, maxNumPointsPerNode, maxNumLevels, plotTree)
+function [potential, tree] = nbody(particleCoordinates, particleMasses, maxNumPointsPerNode, maxNumLevels)
+% function [potential, tree] = nbody(particleCoordinates, particleMasses, maxNumPointsPerNode, maxNumLevels)
 %
 % --- particleCoordinates           : 2 x N array of the point coordinates (N is the number of particles)
-% --- particleCharges                : particle masses - all particle masses must be positive
+% --- particleMasses                : particle masses - all particle masses must be positive
 % --- maxNumPointsPerNode           : used to decide wether to split the node or not  
 %
 % --- potential                     : computed potential at each point
-% --- tree                          : pointer to the root of the tree  
+% --- tree                          : pointer to the tree of the tree  
 %  
 % --- Assumptions:
-%     the algorithm applies to arbitrary particleCharges, but the simple
-%         averaging implemented here works only for positive particleCharges.
-% here we assume that we only compute self interactions, that is the source and target 
+%     the algorithm applies to arbitrary particleMasses, but the simple
+%         averaging implemented here works only for positive particleMasses.
+% here we assume that we only compute self interactions, that is the sourceNode and targetNode 
 %  particleCoordinates coincide.
 
 % --- Default parameters
@@ -21,125 +21,153 @@ end
 if nargin < 4 
     maxNumLevels = 20;      
 end
-assert(all(particleCharges >= 0), 'All particle masses must be positive');
+assert(all(particleMasses >= 0), 'All particle masses must be positive');
 
-% BUILD TREE ---------------------------------------
-globalIds = 1:size(particleCoordinates,2);
-root = qtree;
-root.insertPoints(globalIds,particleCoordinates,maxNumPointsPerNode,maxNumLevels);
+% --- Builds the quad-tree
+globalIDs                       = 1 : size(particleCoordinates, 2);
+tree                            = qtree;
+tree.insertPoints(globalIDs, particleCoordinates, maxNumPointsPerNode, maxNumLevels);
 
-user_data.particleCoordinates    = particleCoordinates;
-user_data.particleCharges = particleCharges;
-% user_data.plotTree  = plotTree; % to plot tree as you evaluate()
+userData.particleCoordinates    = particleCoordinates;
+userData.particleMasses         = particleMasses;
 
-% collect all the leaves on a single lits
-% used in averaging and evaluation to expose parallelism  
-leaves = root.leaves(); 
+% --- Collects all the leaf nodes into a single array. This will be needed to expose parallelism
+leaves = tree.leaves(); 
 
-% AVERAGE  ---------------------------------------
-% we could use the commented line below, but for many particleCoordinates per box
-% the loop version can be parallelized for the leaf nodes
-%root.postorder(@average_leaves,[], user_data);
-for l=1:length(leaves)
-  leaf = leaves{l};
-  average_leaves(leaf,user_data);
+% --- Computes center of mass and total mass for each leaf
+% --- Alternatively, the following line could be used:
+%     tree.postorder(@averageLeaves, [], userData);
+%     However, in the case of many particles per leaf, the loop version can be parallelized
+for l = 1 : length(leaves)
+    leaf = leaves{l};
+    averageLeaves(leaf, userData);
 end
-% average internal nodes
-root.postorder(@average_internal,[],[]);
 
-% EVALUATE  ---------------------------------------
-u = zeros(size(particleCoordinates,2),1);
+% --- Computes averages for the internal nodes
+tree.postorderTraversal(@averageInternal, [], []);
+
+% --- Evaluate potential
+potential = zeros(size(particleCoordinates, 2), 1);
+% --- Loops over the leaves. After having selected the leave, considers all
+% the particles in that leave. They are the targetNode particles, namely, the
+% particles where we want to compute the potential.
 for l = 1:length(leaves)
-  if(plotTree) pause(0.05); clf; hold on; end
-  leaf = leaves{l};
-  if ~isempty(leaf.globalIds)
-    u(leaf.globalIds) = evaluate( leaf, root, user_data);
-  end
+
+    leaf = leaves{l};
+    if ~isempty(leaf.globalIDs)
+        potential(leaf.globalIDs) = evaluate(leaf, tree, userData);
+    end
+  
 end
 
-potential = u;
-tree      = root;
 end
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% EVALUATE POTENTIAL FUNCTION %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function potential = evaluate(leaf, tree, userData)
 
-%/* ************************************************** */
-function u = evaluate(leaf,root,ud)
-% the main evaluation routine for the NBODY   
+%   if userData.plotTree, leaf.plotnode(4); end  % optional plot
+% --- If leaf has no particle, then exit
+if isempty(leaf.globalIDs) 
+    return; 
+end
 
-  if ud.plotTree, leaf.plotnode(4); end  % optional plot
-  if isempty(leaf.globalIds) return; end;     % if leaf has no particleCoordinates nothing to do
-  trg = ud.particleCoordinates(:,leaf.globalIds);          % get target point coordinates
-  u   = zeros(length(leaf.globalIds),1);      % initialize potential to zero
+targetCoordinates   = userData.particleCoordinates(:, leaf.globalIDs);          % --- Get targetNode point coordinates
+potential           = zeros(length(leaf.globalIDs), 1);                         % --- Initialize potential to zero
   
 % prunning function,  a handle function to use for traversals
-  prune=@(node,dummy) well_separated(node,leaf); 
+prune = @(node,dummy) checkIfWellSeparated(node, leaf); 
 
 % evaluation function, again to be used in the traversals
-  function visit(node, ud)                           
-    if ud.plotTree, node.plotnode(); pause(0.01); end  % optional plot
-    if node.isleaf & ~isempty(node.globalIds)  % if source box has not sources, nothing to do
-      src = ud.particleCoordinates(:,node.globalIds);       % get source positions
-      den = ud.particleCharges(:,node.globalIds);    % get source particleCharges values
-      u = u + direct(trg,src,den);        % direct evaluation between boxes
+  function visit(node, userData)                           
+%     if userData.plotTree, node.plotnode(); pause(0.01); end  % optional plot
+    if node.isleaf & ~isempty(node.globalIDs)  % if sourceNode box has not sources, nothing to do
+      src = userData.particleCoordinates(:,node.globalIDs);       % get sourceNode positions
+      den = userData.particleMasses(:,node.globalIDs);    % get sourceNode particleMasses values
+      potential = potential + direct(targetCoordinates,src,den);        % direct evaluation between boxes
       return;
     end
   % if we prune, we have to add the nodes contribution to the leaf
-    if prune(node,[]) 
-      u = u + direct(trg, node.data.x_a, node.data.d_a);  % direct evaluat
+    if prune(node, []) 
+      potential = potential + direct(targetCoordinates, node.data.centerOfMass, node.data.totalMass);  % direct evaluat
     end
   end
 
 % preorderTraversal traversal for evaluation
-  root.preorderTraversal(@visit,prune,ud);   % if couldn't prune, continue with traversal
+  tree.preorderTraversal(@visit,prune,userData);   % if couldn't prune, continue with traversal
 end
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FUNCTION TO COMPUTE THE AVERAGE MASS ON EACH LEAF %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function averageLeaves(node, userData)
+ 
+% --- If the node is not a leaf, then exits
+if ~node.isleaf
+    return; 
+end
 
-%/* ************************************************** */
-function average_leaves(node,user_data)
-  if ~node.isleaf, return; end;
-  particleCoordinates    = user_data.particleCoordinates;
-  particleCharges = user_data.particleCharges;
-  globalIds = node.globalIds;
+particleCoordinates     = userData.particleCoordinates;
+particleMasses          = userData.particleMasses;
+globalIDs               = node.globalIDs;
 
-  if isempty(globalIds) % empty leaf
-    x_a=zeros(2,1); d_a=0; 
-  else
-    d_a = sum( particleCharges(globalIds) );  % average 
-    assert(d_a>0,'Only positive particleCharges allowed');
-    x_a(1) = sum( particleCoordinates   (1,globalIds).*particleCharges(globalIds) )/d_a;  % average position
-    x_a(2) = sum( particleCoordinates   (2,globalIds).*particleCharges(globalIds) )/d_a;  % average position
+if isempty(globalIDs) % --- Empty leaf
+    centerOfMass    = zeros(2, 1); 
+    totalMass       = 0; 
+else
+    totalMass           = sum(particleMasses(globalIDs));  % --- Total mass
+    assert(totalMass > 0, 'Only positive particle masses allowed');
+    centerOfMass(1)     = sum(particleCoordinates(1, globalIDs) .* particleMasses(globalIDs)) / totalMass;  % --- x-coordinate of the center of mass
+    centerOfMass(2)     = sum(particleCoordinates(2, globalIDs) .* particleMasses(globalIDs)) / totalMass;  % --- y-coordinate of the center of mass
   end
-  node.data.x_a = x_a(:);
-  node.data.d_a = d_a;
+  node.data.centerOfMass    = centerOfMass(:);
+  node.data.totalMass       = totalMass;
 end
 
-%/* ************************************************** */
-function average_internal(node,user_data)
-if node.isleaf, return; end;
-  x_a = zeros(2,1); 
-  d_a = 0;
-  for k=1:4
-    d_a = d_a + node.children{k}.data.d_a;
-    x_a = x_a + node.children{k}.data.x_a * node.children{k}.data.d_a;
-  end
-  node.data.x_a = x_a/d_a;
-  node.data.d_a = d_a;
-  if ~(d_a > 0) x_a = zeros(2,1); end  % if we have empty leaves d_a=0
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FUNCTION TO COMPUTE TOTAL MASS AND CENTER OF MASS FOR EACH NODE %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function averageInternal(node, userData)
+
+if node.isleaf
+    return; 
 end
 
+centerOfMass = zeros(2, 1);
+totalMass = 0;
+for k = 1 : 4
+    totalMass       = totalMass + node.children{k}.data.totalMass;
+    centerOfMass    = centerOfMass + node.children{k}.data.centerOfMass * node.children{k}.data.totalMass;
+end
+node.data.centerOfMass  = centerOfMass / totalMass;
+node.data.totalMass     = totalMass;
 
-%/* ************************************************** */
-function itis=well_separated(source,target)
-% check whether two boxes are well separated  
-  [t_xmin,t_xmax,t_ymin,t_ymax] = target.getCornerCoordinates();
-  [s_xmin,s_xmax,s_ymin,s_ymax] = source.getCornerCoordinates();
-  h = source.getNodeWidth();
+% --- If we have empty leaves totalMass = 0
+if ~(totalMass > 0) 
+    centerOfMass = zeros(2,1); 
+end  
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FUNCTION TO CHECK IF TWO NODES ARE WELL SEPARATED %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function itis = checkIfWellSeparated(sourceNode, targetNode)
+
+% --- Checks whether two boxes are well separated  
   
-% neighbor region of target
-  s_xmin = s_xmin -h;   s_ymin = s_ymin -h;
-  s_xmax = s_xmax +h;   s_ymax = s_ymax +h;
+[t_xmin, t_xmax, t_ymin, t_ymax] = targetNode.getCornerCoordinates();
+[s_xmin, s_xmax, s_ymin, s_ymax] = sourceNode.getCornerCoordinates();
+  
+sourceWidth = sourceNode.getNodeWidth();
+  
+% --- Neighbor region of the source node
+s_xmin = s_xmin - sourceWidth;   
+s_ymin = s_ymin - sourceWidth;
+s_xmax = s_xmax + sourceWidth;   
+s_ymax = s_ymax + sourceWidth;
 
-% check overlap of source box neigbhorhood region with target
+% check overlap of sourceNode box neigbhorhood region with targetNode
   flagx = t_xmax > s_xmin & t_xmin < s_xmax;
   flagy = t_ymax > s_ymin & t_ymin < s_ymax;
 
@@ -149,16 +177,16 @@ end
 
 
 %/* ************************************************** */
-function u = direct(trg,src,particleCharges)
+function potential = direct(targetCoordinates,src,particleMasses)
 % this is a direct N^2 evaluation between particles  
-  N = size(trg,2);
-  u = zeros(N,1);
+  N = size(targetCoordinates,2);
+  potential = zeros(N,1);
 
 % MAIN LOOP OVER POINTS
   for k=1:N
   % compute distance  
-    rx = trg(1,k) - src(1,:);  
-    ry = trg(2,k) - src(2,:);
+    rx = targetCoordinates(1,k) - src(1,:);  
+    ry = targetCoordinates(2,k) - src(2,:);
     r =  sqrt(rx.*rx + ry.*ry);
 
   % compute greens function (natural logarithm in 2D)
@@ -168,7 +196,7 @@ function u = direct(trg,src,particleCharges)
     idx = find (g==inf | g==-inf);
     g(idx)=0;
 
-    u(k) = sum ( g.*particleCharges );
+    potential(k) = sum ( g.*particleMasses );
   end
   
 end
@@ -182,11 +210,11 @@ end
 % maxNumLevels       = 20;     % maximum tree depth
 % verbose        = false;  % debugging
 % particleCoordinates = rand(2,N);  
-% particleCharges = rand(1,N)/N;
+% particleMasses = rand(1,N)/N;
 % 
-% [u,tree] = nbody(particleCoordinates,particleCharges,maxNumPointsPerNode,maxNumLevels,false);
-% uex=direct(particleCoordinates(:,1:10), particleCoordinates, particleCharges);
-% error = norm(u(1:10)-uex)/norm(uex)
+% [potential,tree] = nbody(particleCoordinates,particleMasses,maxNumPointsPerNode,maxNumLevels,false);
+% uex=direct(particleCoordinates(:,1:10), particleCoordinates, particleMasses);
+% error = norm(potential(1:10)-uex)/norm(uex)
 % tree.plotTree();
 % 
 % end
