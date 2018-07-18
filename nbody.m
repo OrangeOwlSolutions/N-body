@@ -85,14 +85,14 @@ prune = @(node, dummyParameter) checkIfWellSeparated(node, leaf);
 function visit(node, userData)                   
     % --- If the source node is a leaf and has at least one particle, perform brute-force summation
     if node.isleaf && ~isempty(node.globalIDs)  
-        src = userData.particleCoordinates(:, node.globalIDs);          % --- Get source particle positions
+        sourceCoordinates = userData.particleCoordinates(:, node.globalIDs);          % --- Get source particle positions
         den = userData.particleMasses(:, node.globalIDs);               % --- Get source particle masses
-        potential = potential + direct(targetCoordinates, src, den);    % --- Brute force summation on individual particles
+        potential = potential + bruteForce(targetCoordinates, sourceCoordinates, den);    % --- Brute force summation on individual particles
         return;
     end
     % --- Pruning occurs if the source and target nodes are not well separated. In this case, use brute-force summation
     if prune(node, []) 
-        potential = potential + direct(targetCoordinates, node.data.centerOfMass, node.data.totalMass);  % --- Brute force summation on center of masses
+        potential = potential + bruteForce(targetCoordinates, node.data.centerOfMass, node.data.totalMass);  % --- Brute force summation on center of masses
     end
 end
 
@@ -178,47 +178,5 @@ wellSeparated = ~(flagx & flagy);
 end
 
 
-%/* ************************************************** */
-function potential = direct(targetCoordinates,src,particleMasses)
-% this is a direct N^2 evaluation between particles  
-  N = size(targetCoordinates,2);
-  potential = zeros(N,1);
 
-% MAIN LOOP OVER POINTS
-  for k=1:N
-  % compute distance  
-    rx = targetCoordinates(1,k) - src(1,:);  
-    ry = targetCoordinates(2,k) - src(2,:);
-    r =  sqrt(rx.*rx + ry.*ry);
-
-  % compute greens function (natural logarithm in 2D)
-    g = -1/2/pi * log (r);
-
-  % correct for singularities (r=0->log=inf)
-    idx = find (g==inf | g==-inf);
-    g(idx)=0;
-
-    potential(k) = sum ( g.*particleMasses );
-  end
-  
-end
-
-
-%/* ************************************************** */
-% function selftest()
-% 
-% N              = 2^6;    % number of particles
-% maxNumPointsPerNode = 10;      % particleCoordinates per box
-% maxNumLevels       = 20;     % maximum tree depth
-% verbose        = false;  % debugging
-% particleCoordinates = rand(2,N);  
-% particleMasses = rand(1,N)/N;
-% 
-% [potential,tree] = nbody(particleCoordinates,particleMasses,maxNumPointsPerNode,maxNumLevels,false);
-% uex=direct(particleCoordinates(:,1:10), particleCoordinates, particleMasses);
-% error = norm(potential(1:10)-uex)/norm(uex)
-% tree.plotTree();
-% 
-% end
-% 
 

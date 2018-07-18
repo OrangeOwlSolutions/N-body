@@ -185,6 +185,7 @@ function preorderTraversal(this, visitFunction, prune, userData)
 % prune(node,data) can be empty
 % userData: user data structure for calculations
 
+% --- In the N-body case, prune checks if the source and target nodes are well separated
 doPrune = false;
 if ~isempty(prune)
     doPrune = prune(this, userData);  
