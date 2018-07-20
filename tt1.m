@@ -15,10 +15,10 @@ verbose                 = true;
 particleCoordinates     = rand(2, N); 
 
 % --- Running the algorithm
-globalIds               = 1 : N;  % --- Global particle IDs
+globalIDs               = 1 : N;  % --- Global particle IDs
 quadTreeObject          = qtree;  % --- Initializing the quad tree object  
 % --- Inserting the particles
-quadTreeObject.insertPoints(globalIds, particleCoordinates, maxNumPointsPerNode, maxNumLevels);
+quadTreeObject.insertPoints(globalIDs, particleCoordinates, maxNumPointsPerNode, maxNumLevels);
 % --- Plotting the tree
 quadTreeObject.plotTree;
 axis off; hold on;

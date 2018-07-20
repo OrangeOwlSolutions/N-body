@@ -3,22 +3,22 @@
 #include <thrust\host_vector.h>
 #include <thrust\generate.h>
 #include <thrust\for_each.h>
+#include <thrust\execution_policy.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/constant_iterator.h>
+
+#include "qtree.h"
 
 /************************************/
 /* RANDOM NUMBERS GENERATION STRUCT */
 /************************************/
-template<class T>
-__host__ struct rand_01
-{
-	const T constant;
+template<typename T>
+struct rand_01 {
+
+	T constant;
 
 	rand_01(T _constant) : constant(_constant) {}
-
-	__host__ void operator()(T& VecElem) const
-	{
-		VecElem = (T)rand() / RAND_MAX / constant;
-	}
-
+	__host__ void operator()(T& VecElem) const { VecElem = (T)rand() / RAND_MAX / constant; }
 };
 
 //#include <omp.h>
@@ -70,8 +70,8 @@ __host__ struct rand_01
 //				 const double ymin,
 //				 const int maxNumPointsPerNode,
 //				 const int maxNumLevels,
-//				 point width,
-//				 vector<particle>* pts,
+//				 point nodeSize,
+//				 vector<particle>* particleCoordinates,
 //				 int N,
 //				 qtree* qt,
 //				 const int st_pt,
@@ -80,8 +80,8 @@ __host__ struct rand_01
 //{
 //	point anch(xmin, ymin);
 //	qt->initialize_root( NULL, 0, anch, maxNumLevels,
-//						 maxNumPointsPerNode, width, 0,
-//						 pts, N, 0, st_pt, np_proc );
+//						 maxNumPointsPerNode, nodeSize, 0,
+//						 particleCoordinates, N, 0, st_pt, np_proc );
 //
 //	qt->insert_points(nt);	
 //		
@@ -90,18 +90,18 @@ __host__ struct rand_01
 //	
 //
 //// read from the file
-//int read_points( vector<particle>& pts,
+//int read_points( vector<particle>& particleCoordinates,
 //				 const int N )
 //{
 //	ifstream file_in ("points.dat");
 //	if (!file_in.is_open()) return 1;
 //
-//	pts.resize(N);
+//	particleCoordinates.resize(N);
 //	
 //	for(int i=0; i<N; i++){
-//		file_in>>pts[i].x;
-//		file_in>>pts[i].y;
-//		file_in>>pts[i].mt_id;
+//		file_in>>particleCoordinates[i].x;
+//		file_in>>particleCoordinates[i].y;
+//		file_in>>particleCoordinates[i].mt_id;
 //	}
 //	
 //	file_in.close();
@@ -110,7 +110,7 @@ __host__ struct rand_01
 //}
 //
 //
-//int write_points( const vector<particle>& pts,
+//int write_points( const vector<particle>& particleCoordinates,
 //				  const int N )
 //{
 //	ofstream ofile;
@@ -118,8 +118,8 @@ __host__ struct rand_01
 //
 //	for (int i=0; i<N; i++){
 //
-//		ofile<<pts[i].x<<" "<<pts[i].y<<" "<<setprecision(25)<<pts[i].mt_id<<" "
-//			 <<pts[i].m<<" "<<pts[i].u<<endl;
+//		ofile<<particleCoordinates[i].x<<" "<<particleCoordinates[i].y<<" "<<setprecision(25)<<particleCoordinates[i].mt_id<<" "
+//			 <<particleCoordinates[i].m<<" "<<particleCoordinates[i].u<<endl;
 //	}
 //	ofile.close();
 //
@@ -136,14 +136,14 @@ __host__ struct rand_01
 //	// qt is not leaf
 //	if (!qt->isleaf){
 //		for(int i=0; i<4; i++){
-//			write_boxes(&(qt->kids[i]), ofile, 0);
+//			write_boxes(&(qt->children[i]), ofile, 0);
 //		}
 //	}
 //	// qt is leaf
 //	else{
 //		ofile<<qt->level<<" "
-//			 <<qt->anchor.x<<" "<<qt->anchor.y<<" "
-//			 <<qt->width.x<<" "<<qt->width.y<<endl;
+//			 <<qt->lowerLeftCorner.x<<" "<<qt->lowerLeftCorner.y<<" "
+//			 <<qt->nodeSize.x<<" "<<qt->nodeSize.y<<endl;
 //	}
 //
 //	// only close ofstream for parent node
@@ -169,8 +169,8 @@ __host__ struct rand_01
 //
 //	// qtree qt;
 //	// qt.initialize_root( NULL, 0, anch, maxNumLevels,
-//	// 					maxNumPointsPerNode, width, 0,
-//	// 					pts, N, 0, st_pt, np_proc );
+//	// 					maxNumPointsPerNode, nodeSize, 0,
+//	// 					particleCoordinates, N, 0, st_pt, np_proc );
 //
 //	// for(int i=0; i<nt; i++){
 //	// 	for(int j=0; j<4; j++){
@@ -180,10 +180,10 @@ __host__ struct rand_01
 //	// }
 //	
 //	for(int i=0; i<4; i++){
-//		for(int j=0; j<qt->kids[i].idx.size(); j++){
-//			if (id==qt->kids[i].idx[j]){
-//				return &(qt->kids[i]);
-//				// return get_local_node(id, &(qt->kids[i]), level-1);
+//		for(int j=0; j<qt->children[i].globalIDs.size(); j++){
+//			if (id==qt->children[i].globalIDs[j]){
+//				return &(qt->children[i]);
+//				// return get_local_node(id, &(qt->children[i]), level-1);
 //			}
 //		}
 //	}
@@ -192,18 +192,18 @@ __host__ struct rand_01
 //}
 //
 //// get which kid has the node with id
-//qtree* get_local_node(const int id, qtree* qt, const vector<particle>& pts )
+//qtree* get_local_node(const int id, qtree* qt, const vector<particle>& particleCoordinates )
 //{
 //	if (qt->isleaf)
 //		return qt;
 //	
 //	for(int i=0; i<4; i++){
-//		if( pts[id].x > qt->kids[i].anchor.x &&
-//			pts[id].x < (qt->kids[i].anchor.x+qt->kids[i].width.x) &&
-//			pts[id].y > qt->kids[i].anchor.y &&
-//			pts[id].y < (qt->kids[i].anchor.y+qt->kids[i].width.y) )
+//		if( particleCoordinates[id].x > qt->children[i].lowerLeftCorner.x &&
+//			particleCoordinates[id].x < (qt->children[i].lowerLeftCorner.x+qt->children[i].nodeSize.x) &&
+//			particleCoordinates[id].y > qt->children[i].lowerLeftCorner.y &&
+//			particleCoordinates[id].y < (qt->children[i].lowerLeftCorner.y+qt->children[i].nodeSize.y) )
 //
-//			return &(qt->kids[i]);
+//			return &(qt->children[i]);
 //			
 //	}
 //	
@@ -216,10 +216,10 @@ __host__ struct rand_01
 //					const double y_target,
 //					qtree* source )
 //{
-//	double xdiff = abs((source->anchor.x) - (x_target));
-//	double ydiff = abs((source->anchor.y) - (y_target));
+//	double xdiff = abs((source->lowerLeftCorner.x) - (x_target));
+//	double ydiff = abs((source->lowerLeftCorner.y) - (y_target));
 //
-//	if ((xdiff>source->width.x) || (ydiff>source->width.y) )
+//	if ((xdiff>source->nodeSize.x) || (ydiff>source->nodeSize.y) )
 //		return 1;
 //	
 //	return 0;
@@ -227,14 +227,14 @@ __host__ struct rand_01
 //
 //// evaluate the potential at target using individual particles
 //double direct_evaluation( const int id, qtree* source,
-//						const vector<particle>& pts)
+//						const vector<particle>& particleCoordinates)
 //{
 //	double u=0.0;
 //	
-//	for(int i=0; i<source->idx.size(); i++){
-//		u += g_kernel( pts[id].x, pts[id].y,
-//					   pts[source->idx[i]].x, pts[source->idx[i]].y )
-//			* pts[source->idx[i]].m;
+//	for(int i=0; i<source->globalIDs.size(); i++){
+//		u += g_kernel( particleCoordinates[id].x, particleCoordinates[id].y,
+//					   particleCoordinates[source->globalIDs[i]].x, particleCoordinates[source->globalIDs[i]].y )
+//			* particleCoordinates[source->globalIDs[i]].m;
 //	}
 //		
 //
@@ -243,50 +243,50 @@ __host__ struct rand_01
 //
 //// evaluate the potential at a target using a box
 //double approximate_evaluation( const int id, qtree* source,
-//							   const vector<particle>& pts )
+//							   const vector<particle>& particleCoordinates )
 //{
-//	double u = g_kernel( pts[id].x , pts[id].y,
+//	double u = g_kernel( particleCoordinates[id].x , particleCoordinates[id].y,
 //						 source->centroid.x, source->centroid.y )
-//		* source->total_mass;
+//		* source->totalMass;
 //
 //	return u;
 //}
 //
 //// evaluate the forces using quadtree
 //void evaluate_trees( const int id,
-//					 qtree* source, vector<particle>& pts)
+//					 qtree* source, vector<particle>& particleCoordinates)
 //{
-//	// get qtree pointer of the kid that has the pts[id]
+//	// get qtree pointer of the kid that has the particleCoordinates[id]
 //	// target = get_local_node(id, target, 1);
-//	// target = get_local_node(id, target, pts);
+//	// target = get_local_node(id, target, particleCoordinates);
 //
 //	
-//	// cout<<"x "<<pts[id].x<<" y "<<pts[id].y<<endl;
-//	// cout<<"gid "<<target->gid<<" level "<<target->level<<endl;
+//	// cout<<"x "<<particleCoordinates[id].x<<" y "<<particleCoordinates[id].y<<endl;
+//	// cout<<"globalNodeID "<<target->globalNodeID<<" level "<<target->level<<endl;
 //
-//	// now compare the target with the kids of the source
+//	// now compare the target with the children of the source
 //	for(int i=0; i<4; i++){
 //		// not separated enough
-//		if(!well_separated(pts[id].x, pts[id].y, &(source->kids[i]))){
+//		if(!well_separated(particleCoordinates[id].x, particleCoordinates[id].y, &(source->children[i]))){
 //			// but the kid is a leaf
-//			if(source->kids[i].isleaf){
-//				// cout<<target->gid<<" and "<<source->kids[i].gid
+//			if(source->children[i].isleaf){
+//				// cout<<target->globalNodeID<<" and "<<source->children[i].globalNodeID
 //					// <<" need direct evaluation on level "
 //					// <<level+1<<endl;	// cout<<"leaf"<<endl;
-//				pts[id].u += direct_evaluation(id, &(source->kids[i]), pts);
+//				particleCoordinates[id].u += direct_evaluation(id, &(source->children[i]), particleCoordinates);
 //			}
 //			// not leaf
 //			else{
 //				// cout<<"not separated enough"<<endl;
 //				// go one level down
-//				evaluate_trees(id, &(source->kids[i]), pts);
+//				evaluate_trees(id, &(source->children[i]), particleCoordinates);
 //			}
 //		}
 //		else{
-//			// cout<<target->gid<<" and "<<source->kids[i].gid
+//			// cout<<target->globalNodeID<<" and "<<source->children[i].globalNodeID
 //				// <<" are sufficiently SEPARATED on level "
 //				// <<level+1<<" "<<target->level<<endl;
-//			pts[id].u += approximate_evaluation(id, &(source->kids[i]), pts );
+//			particleCoordinates[id].u += approximate_evaluation(id, &(source->children[i]), particleCoordinates );
 //		}
 //	}
 //		
@@ -305,15 +305,33 @@ int main() {
 
 	// --- Particle coordinates
 	thrust::host_vector<double>		particleCoordinates(N * 2);
-	//thrust::generate(particleCoordinates.begin(), particleCoordinates.end(), rand_01<double>(N));
-	thrust::transform(particleCoordinates.begin(), particleCoordinates.end(), particleCoordinates.begin(), rand_01<double>(N));
-	//thrust::for_each(particleCoordinates.begin(), particleCoordinates.end(), rand_01<double>(N));
-	std::cout << "Values generated: " << std::endl;
-	for (int k = 0; k < N * 2; k++)
-		std::cout << particleCoordinates[k] << " : ";
-	std::cout << std::endl;
+	thrust::for_each(particleCoordinates.begin(), particleCoordinates.end(), rand_01<double>(1.));
 
-	//const point width(xrange, yrange);
+	thrust::host_vector<double>		particleMasses(N);
+	thrust::for_each(particleMasses.begin(), particleMasses.end(), rand_01<double>((double)N));
+
+	// --- Running the algorithm
+	thrust::host_vector<int>		globalIDs(N);
+	thrust::transform(thrust::make_counting_iterator(0),
+		thrust::make_counting_iterator(N - 1),
+		thrust::make_constant_iterator(1),
+		globalIDs.begin(),
+		thrust::plus<int>());
+
+
+	//globalIDs = 1 : N;  % -- - Global particle IDs
+
+
+
+		//quadTreeObject = qtree;  % -- - Initializing the quad tree object
+
+
+	//std::cout << "Values generated: " << std::endl;
+	//for (int k = 0; k < N; k++)
+	//	std::cout << particleMasses[k] << " : ";
+	//std::cout << std::endl;
+
+	//const point nodeSize(xrange, yrange);
 
 	// thread nesting enabled
 	//omp_set_nested(1);
@@ -342,46 +360,46 @@ int main() {
 //	double start, end;
 //	
 //	// generate points
-//	vector<particle> pts;
-//	pts.resize(N);
-//	#pragma omp parallel for shared(pts)
+//	vector<particle> particleCoordinates;
+//	particleCoordinates.resize(N);
+//	#pragma omp parallel for shared(particleCoordinates)
 //	for(int i=0; i<N; i++){
 //
 //	if(i<N/10){
-//			pts[i].gen_coords_cluster(xmin, xrange, ymin, yrange,
+//			particleCoordinates[i].gen_coords_cluster(xmin, xrange, ymin, yrange,
 //				mmin, mrange, xmin+xrange/4,
 //				ymin+yrange/3, min(xrange,yrange)/5);
 //		}
 //		else if(i<4*N/10) {
-//			pts[i].gen_coords_cluster(xmin, xrange, ymin, yrange,
+//			particleCoordinates[i].gen_coords_cluster(xmin, xrange, ymin, yrange,
 //				mmin, mrange, xmin+3*xrange/4,
 //				ymin+2*yrange/3, min(xrange,yrange)/6);
 //		}
 //		else{
-//			pts[i].gen_coords_cluster(xmin, xrange, ymin, yrange,
+//			particleCoordinates[i].gen_coords_cluster(xmin, xrange, ymin, yrange,
 //				mmin, mrange,
 //				xmin+xrange/4, ymin+3*yrange/4,
 //				min(xrange,yrange)/5);
 //		}
 //
-//	// pts[i].gen_coords(xmin, xrange, ymin, yrange, mmin, mrange);
+//	// particleCoordinates[i].gen_coords(xmin, xrange, ymin, yrange, mmin, mrange);
 //	}
 //	
 //	// compute morton ids
 //	start=omp_get_wtime();	
-//	#pragma omp parallel for default(none), shared(pts, N, maxNumLevels)
+//	#pragma omp parallel for default(none), shared(particleCoordinates, N, maxNumLevels)
 //	for(int i=0; i<N; i++)
-//		pts[i].get_morton_id(xmin, ymin, x_grid_size, y_grid_size, maxNumLevels);
+//		particleCoordinates[i].get_morton_id(xmin, ymin, x_grid_size, y_grid_size, maxNumLevels);
 //	end=omp_get_wtime();	
 //	cout<<"get_morton_id: "<<end-start<<endl;
 //	
 //	// parallel merge sort
 //	// vector<particle> tmp;
 //	// tmp.resize(N);
-//	// mergesort<particle>(&pts[0], nt, N, &tmp[0], compar_vector);
+//	// mergesort<particle>(&particleCoordinates[0], nt, N, &tmp[0], compar_vector);
 //
 //	// read points data
-//	// read_points(pts, N);
+//	// read_points(particleCoordinates, N);
 //
 //	cout<<endl;
 //	for(int i=0; i<5; i++){
@@ -393,22 +411,22 @@ int main() {
 //		start=omp_get_wtime();
 //		for(int i=0; i<nt; i++){
 //			// build tree
-//			build_tree( xmin, ymin, maxNumPointsPerNode, maxNumLevels, width,
-//						&pts, N, qt1, 0, N, 1);
+//			build_tree( xmin, ymin, maxNumPointsPerNode, maxNumLevels, nodeSize,
+//						&particleCoordinates, N, qt1, 0, N, 1);
 //		}
 //		end=omp_get_wtime();
 //		cout<<"build_tree: "<<end-start<<endl;
 //
 //		start=omp_get_wtime();	
-//		#pragma omp parallel for shared(qt1, pts) num_threads(n_th)
+//		#pragma omp parallel for shared(qt1, particleCoordinates) num_threads(n_th)
 //		for(int i=0; i<N; i++)
-//			evaluate_trees(i, qt1, pts);
+//			evaluate_trees(i, qt1, particleCoordinates);
 //		end=omp_get_wtime();
 //		cout<<"evaluate_trees: "<<end-start<<endl;
 //	
 //		// ofstream ofs;
 //		// write_boxes( qt1, ofs, 1 );
-//		// write_points(pts, N);
+//		// write_points(particleCoordinates, N);
 //	
 //		delete qt1;
 //		
@@ -419,11 +437,11 @@ int main() {
 //	// qtree* qt2 = new qtree;
 //	// // parallel tree construction
 //	// start=omp_get_wtime();
-//	// // #pragma omp parallel for shared(pts, np_local)
+//	// // #pragma omp parallel for shared(particleCoordinates, np_local)
 //	// for(int i=0; i<nt; i++){
 //	// 	// build tree
-//	// 	build_tree( xmin, ymin, maxNumPointsPerNode, maxNumLevels, width,
-//	// 	&pts, N, qt2, 0, N, 2);
+//	// 	build_tree( xmin, ymin, maxNumPointsPerNode, maxNumLevels, nodeSize,
+//	// 	&particleCoordinates, N, qt2, 0, N, 2);
 //	// }
 //	// end=omp_get_wtime();
 //	// cout<<"wall clock time = "<<end-start<<endl;
@@ -432,11 +450,11 @@ int main() {
 //	// qtree* qt4 = new qtree;
 //	// // parallel tree construction
 //	// start=omp_get_wtime();
-//	// // #pragma omp parallel for shared(pts, np_local)
+//	// // #pragma omp parallel for shared(particleCoordinates, np_local)
 //	// for(int i=0; i<nt; i++){
 //	// 	// build tree
-//	// 	build_tree( xmin, ymin, maxNumPointsPerNode, maxNumLevels, width,
-//	// 	&pts, N, qt4, 0, N, 4);
+//	// 	build_tree( xmin, ymin, maxNumPointsPerNode, maxNumLevels, nodeSize,
+//	// 	&particleCoordinates, N, qt4, 0, N, 4);
 //	// }
 //	// end=omp_get_wtime();
 //	// cout<<"wall clock time = "<<end-start<<endl;
@@ -445,11 +463,11 @@ int main() {
 //	// qtree* qt8 = new qtree;
 //	// // parallel tree construction
 //	// start=omp_get_wtime();
-//	// // #pragma omp parallel for shared(pts, np_local)
+//	// // #pragma omp parallel for shared(particleCoordinates, np_local)
 //	// for(int i=0; i<nt; i++){
 //	// 	// build tree
-//	// 	build_tree( xmin, ymin, maxNumPointsPerNode, maxNumLevels, width,
-//	// 	&pts, N, qt8, 0, N, 8);
+//	// 	build_tree( xmin, ymin, maxNumPointsPerNode, maxNumLevels, nodeSize,
+//	// 	&particleCoordinates, N, qt8, 0, N, 8);
 //	// }
 //	// end=omp_get_wtime();
 //	// cout<<"wall clock time = "<<end-start<<endl;
