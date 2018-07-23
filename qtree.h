@@ -58,7 +58,7 @@ public:
 	int maxNumLevels;											// --- Maximum tree depth
 	int maxNumPointsPerNode;									// --- Maximum number of particles per node
 
-	// --- Constructor with empty arguments
+	// --- Constructor with no arguments
 	qtree();
 
 	// --- Destructor
@@ -76,7 +76,8 @@ public:
 	//					  long ini_gid, int st_point,
 	//					  int np_local);
 	//
-	//int insert_points( int n_threads=2 );
+	
+	void insertPoints(thrust::host_vector<int> &globalIDs);
 	//void create_kids();
 	//void show_kids();
 	//void points_in_node( vector<int>& idx_parent );

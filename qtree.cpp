@@ -1,5 +1,23 @@
 #include "qtree.h"
 
+#include <thrust\merge.h>
+#include <thrust\execution_policy.h>
+
+/**************/
+/* DESTRUCTOR */
+/**************/
+qtree::~qtree()
+{
+	//// not leaf
+	//if(!isleaf)
+	//	delete[] children;
+
+	return;
+}
+
+/*********************************/
+/* CONSTRUCTOR WITH NO ARGUMENTS */
+/*********************************/
 qtree::qtree() {
 
 	float2 lowerLeftCorner; lowerLeftCorner.x = 0.; lowerLeftCorner.y = 0.;
@@ -16,6 +34,143 @@ qtree::qtree() {
 	this->isleaf = true;
 
 }
+
+/************************/
+/* INSERT POINTS METHOD */
+/************************/
+void qtree::insertPoints(thrust::host_vector<int> &globalIDs) {
+
+	// --- Function adding points to the quad tree.
+	// --- particleCoordinates           : 2 x N array of the point coordinates (N is the number of particles)
+	// --- globalIDs : ids of particleCoordinates(unsigned int)
+	// --- maxNumPointsPerNode : used to decide wether to split the node or not
+	//
+	//     Note that this function will break if globalIDs is not a permuation of 1 : N
+
+	if (globalIDs.size() == 0) return;
+
+	printf("Sto qui\n");
+
+	// --- If the node is a leaf...
+	if (this->isleaf) {
+		const int numParticlesToBeInserted = globalIDs.size();
+		const int numAlreadyPresentParticles = this->globalIDs.size();
+		printf("Number of Particles already present %d\n", numAlreadyPresentParticles);
+		// ...the particle IDs are merged...
+		int *result_end =
+			thrust::merge(thrust::host,
+			this->globalIDs.begin(), this->globalIDs.end(),
+			globalIDs.begin(), globalIDs.end(),
+			this->globalIDs.begin());
+		//this.globalIDs = unique([this.globalIDs(:); globalIDs(:)]);
+
+		// ...if the node can host the already contained particles plus the new particles, or if the node level is the maximum possible,
+		//then there is nothing to do and the routine returns...
+		//	if (numAlreadyPresentParticles + numParticlesToBeInserted <= maxNumPointsPerNode || this.level == maxNumLevels)
+		//		return;
+		//end
+
+		//	% ...if the node cannot host the already contained particles plus the new particles, or if the node level is less than maximum
+		//	%    possible, then the node is split.
+		//	splitNode(this);
+
+		//% -- - The particle IDs are temporary saved and canceled from the current node that has become a parent.
+		//	globalIDs = this.globalIDs;
+		//this.globalIDs = [];
+	}
+
+	//	% -- - Now we have to insert the particle coordinates to the children.
+	//	for k = 1 : 4
+	//		% -- - First, we have to check which points belong to which child...
+	//		idx = this.children{ k }.getPointIndicesInNode(particleCoordinates(:, globalIDs));
+	//% ... and then the function recursively calls itself.
+	//	this.children{ k }.insertPoints(globalIDs(idx), particleCoordinates, maxNumPointsPerNode, maxNumLevels);
+	//end
+
+	//get_centroid();
+	//
+	//if (isleaf){
+
+	//	if((level==maxNumLevels) || (globalIDs.size()<maxNumPointsPerNode)){
+	//		isleaf=1; // becomes leaf
+	//		return 1;
+	//	}
+	//	
+	//	else create_kids();
+
+	//}
+
+	//if (n_th > 1){
+	//	// now insert points to children
+	//	// for(int i=0; i<4; i++){
+	//	#pragma omp parallel shared (n_th)
+	//	{
+
+	//	#pragma omp sections 
+	//	{
+	//		#pragma omp section 
+	//		{
+	//			#pragma omp atomic
+	//			n_th--;
+	//			// #pragma omp critical
+	//			// cout<<omp_get_thread_num()<<" start"<<endl;
+	//			children[0].points_in_node(globalIDs);
+	//			
+	//			if(children[0].insertPoints(n_threads/2))
+	//				childrenExist[0] = 0;
+	//			
+	//			children[1].points_in_node(globalIDs);
+	//			if(children[1].insertPoints(n_threads/2))
+	//				childrenExist[1] = 0;
+	//		
+	//			// #pragma omp critical
+	//			// cout<<omp_get_thread_num()<<" end"<<endl;
+	//		
+	//			#pragma omp atomic
+	//			n_th++;
+	//		}
+
+	//		#pragma omp section
+	//		{
+	//			#pragma omp atomic
+	//			n_th--;
+	//			// #pragma omp critical
+	//			// cout<<omp_get_thread_num()<<" start"<<endl;
+
+	//			children[2].points_in_node(globalIDs);
+	//			if(children[2].insertPoints(n_threads-n_threads/2))
+	//				childrenExist[2] = 0;
+	//			
+	//			children[3].points_in_node(globalIDs);
+	//			if(children[3].insertPoints(n_threads-n_threads/2))
+	//				childrenExist[3] = 0;
+
+	//			#pragma omp atomic
+	//			n_th++;
+	//			
+	//			// #pragma omp critical
+	//			// cout<<omp_get_thread_num()<<" end"<<endl;
+	//			
+	//		}
+
+	//	} 
+	//}
+	//}
+	//// serial
+	//else{
+	//	for(int i=0; i<4; i++){
+	//		children[i].points_in_node(globalIDs);
+	//		if(children[i].insertPoints(1))
+	//			childrenExist[i] = 0;
+	//	}
+	//		
+	//}
+	//
+	//
+	//return 0;
+
+}
+
 
 //void qtree::qtree(qtree* ini_parent, int ini_level, point ini_anchor,
 //	int ini_max_level, int ini_max_pts,
@@ -91,92 +246,6 @@ qtree::qtree() {
 //	globalNodeID = 0;
 //};
 //
-//
-//int qtree::insert_points( int n_threads )
-//{
-//	get_centroid();
-//	
-//	if (isleaf){
-//
-//		if((level==maxNumLevels) || (globalIDs.size()<maxNumPointsPerNode)){
-//			isleaf=1; // becomes leaf
-//			return 1;
-//		}
-//		
-//		else create_kids();
-//
-//	}
-//
-//	if (n_th > 1){
-//		// now insert points to children
-//		// for(int i=0; i<4; i++){
-//		#pragma omp parallel shared (n_th)
-//		{
-//
-//		#pragma omp sections 
-//		{
-//			#pragma omp section 
-//			{
-//				#pragma omp atomic
-//				n_th--;
-//				// #pragma omp critical
-//				// cout<<omp_get_thread_num()<<" start"<<endl;
-//				children[0].points_in_node(globalIDs);
-//				
-//				if(children[0].insert_points(n_threads/2))
-//					childrenExist[0] = 0;
-//				
-//				children[1].points_in_node(globalIDs);
-//				if(children[1].insert_points(n_threads/2))
-//					childrenExist[1] = 0;
-//			
-//				// #pragma omp critical
-//				// cout<<omp_get_thread_num()<<" end"<<endl;
-//			
-//				#pragma omp atomic
-//				n_th++;
-//			}
-//
-//			#pragma omp section
-//			{
-//				#pragma omp atomic
-//				n_th--;
-//				// #pragma omp critical
-//				// cout<<omp_get_thread_num()<<" start"<<endl;
-//
-//				children[2].points_in_node(globalIDs);
-//				if(children[2].insert_points(n_threads-n_threads/2))
-//					childrenExist[2] = 0;
-//				
-//				children[3].points_in_node(globalIDs);
-//				if(children[3].insert_points(n_threads-n_threads/2))
-//					childrenExist[3] = 0;
-//
-//				#pragma omp atomic
-//				n_th++;
-//				
-//				// #pragma omp critical
-//				// cout<<omp_get_thread_num()<<" end"<<endl;
-//				
-//			}
-//
-//		} 
-//	}
-//	}
-//	// serial
-//	else{
-//		for(int i=0; i<4; i++){
-//			children[i].points_in_node(globalIDs);
-//			if(children[i].insert_points(1))
-//				childrenExist[i] = 0;
-//		}
-//			
-//	}
-//	
-//	
-//	return 0;
-//
-//}
 //
 //void qtree::create_kids()
 //{
@@ -264,16 +333,6 @@ qtree::qtree() {
 //	}
 //
 //	
-//}
-//
-//// destructor, delete all the child objects
-//qtree::~qtree()
-//{
-//	// not leaf
-//	if(!isleaf)
-//		delete[] children;
-//
-//	return;
 //}
 //
 //void qtree::get_centroid( )

@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include <thrust\host_vector.h>
+#include <thrust\sequence.h>
 #include <thrust\generate.h>
 #include <thrust\for_each.h>
 #include <thrust\execution_policy.h>
@@ -83,7 +84,7 @@ struct rand_01 {
 //						 maxNumPointsPerNode, nodeSize, 0,
 //						 particleCoordinates, N, 0, st_pt, np_proc );
 //
-//	qt->insert_points(nt);	
+//	qt->insertPoints(nt);	
 //		
 //	return;
 //}
@@ -312,13 +313,24 @@ int main() {
 
 	// --- Running the algorithm
 	thrust::host_vector<int>		globalIDs(N);
-	thrust::transform(thrust::make_counting_iterator(0),
-		thrust::make_counting_iterator(N - 1),
-		thrust::make_constant_iterator(1),
-		globalIDs.begin(),
-		thrust::plus<int>());
+	//thrust::transform(thrust::make_counting_iterator(0),
+	//	thrust::make_counting_iterator(N),
+	//	thrust::make_constant_iterator(1),
+	//	globalIDs.begin(),
+	//	thrust::plus<int>());
 
+	thrust::sequence(thrust::host, globalIDs.begin(), globalIDs.end());
+	for (int k = 0; k < N; k++) printf("globalIDs = %d\n", globalIDs[k]);
 
+	qtree quadTreeObject;				// --- Initializing the quad tree object
+	
+	quadTreeObject.insertPoints(globalIDs);
+	
+	printf("level = %d\n", quadTreeObject.level);
+	
+	//quadTreeObject = qtree();  
+
+	
 	//globalIDs = 1 : N;  % -- - Global particle IDs
 
 
