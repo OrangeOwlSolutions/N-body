@@ -127,7 +127,7 @@ function insertPoints(this, globalIDs, particleCoordinates, maxNumPointsPerNode,
   
 if isempty(globalIDs), return; end;
 
-% --- In the node is a leaf...
+% --- If the node is a leaf...
 if this.isleaf
     numParticlesToBeInserted      = length(globalIDs);
     numAlreadyPresentParticles    = length(this.globalIDs);
