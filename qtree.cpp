@@ -57,11 +57,8 @@ void qtree::insertPoints(thrust::host_vector<int> &globalIDs) {
 		const int numAlreadyPresentParticles = this->globalIDs.size();
 		printf("Number of Particles already present %d\n", numAlreadyPresentParticles);
 		// ...the particle IDs are merged...
-		int *result_end =
-			thrust::merge(thrust::host,
-			this->globalIDs.begin(), this->globalIDs.end(),
-			globalIDs.begin(), globalIDs.end(),
-			this->globalIDs.begin());
+		this->globalIDs.reserve(this->globalIDs.size() + globalIDs.size());
+		this->globalIDs.insert(this->globalIDs.end(), globalIDs.begin(), globalIDs.end());
 		//this.globalIDs = unique([this.globalIDs(:); globalIDs(:)]);
 
 		// ...if the node can host the already contained particles plus the new particles, or if the node level is the maximum possible,
