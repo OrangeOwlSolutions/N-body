@@ -2,6 +2,7 @@
 
 #include <thrust\merge.h>
 #include <thrust\execution_policy.h>
+#include <thrust\unique.h>
 
 /**************/
 /* DESTRUCTOR */
@@ -56,16 +57,25 @@ void qtree::insertPoints(thrust::host_vector<int> &globalIDs) {
 		const int numParticlesToBeInserted = globalIDs.size();
 		const int numAlreadyPresentParticles = this->globalIDs.size();
 		printf("Number of Particles already present %d\n", numAlreadyPresentParticles);
+		
 		// ...the particle IDs are merged...
-		this->globalIDs.reserve(this->globalIDs.size() + globalIDs.size());
-		this->globalIDs.insert(this->globalIDs.end(), globalIDs.begin(), globalIDs.end());
-		//this.globalIDs = unique([this.globalIDs(:); globalIDs(:)]);
+		thrust::host_vector<int> globalIDsTemp(this->globalIDs.size() + globalIDs.size());
+		thrust::merge(this->globalIDs.begin(), this->globalIDs.end(), globalIDs.begin(), globalIDs.end(), globalIDsTemp.begin());
+
+		auto new_end = thrust::unique(globalIDsTemp.begin(), globalIDsTemp.end());
+
+		int new_elements = new_end - globalIDsTemp.begin();
+
+		this->globalIDs.resize(new_elements);
+		thrust::copy(globalIDsTemp.begin(), globalIDsTemp.end(), this->globalIDs.begin());
+		globalIDsTemp.clear();
+		globalIDsTemp.shrink_to_fit();
+
+		//for (int k = 0; k < new_elements; k++) printf("globalIDsTemp[%d] = %d\n", k, this->globalIDs[k]);
 
 		// ...if the node can host the already contained particles plus the new particles, or if the node level is the maximum possible,
 		//then there is nothing to do and the routine returns...
-		//	if (numAlreadyPresentParticles + numParticlesToBeInserted <= maxNumPointsPerNode || this.level == maxNumLevels)
-		//		return;
-		//end
+		if (numAlreadyPresentParticles + numParticlesToBeInserted <= maxNumPointsPerNode || this->level == maxNumLevels) return;
 
 		//	% ...if the node cannot host the already contained particles plus the new particles, or if the node level is less than maximum
 		//	%    possible, then the node is split.
